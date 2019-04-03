@@ -1,0 +1,82 @@
+---
+title: "PSI Data Analysis primer"
+output: html_notebook
+---
+
+## Background information
+
+In order to process large phenotyping data set, it is better to streamline this process as much as possible. In order to provide a primer for the less-experienced in R, and those who don't know where to start, I wrote this small example of data analysis and visualization. 
+
+Remember - as the data that you are about to process is rather large - it is much better to document each step of your analysis to make sure it is as reproducible as possible. In the example data set I am using a collection of various mutants in Arabidopsis that were grown under "control" and "salt stress" conditions.
+
+## Loading & organizing the datasets
+
+OK - the data that is coming from the PSI machine is usually coming in separate .csv files > in order to make life easier for us we are going to combine all the phenotype containing files into one dataset:
+
+```{r}
+# load the datasets:
+morpho_data <- read.csv("Rgb_Morpho_Plant.csv")
+head(morpho_data)
+```
+
+In the example morpho_data:
+- the treatment is indicated in collumn "Tray.Info"
+- the genotype is indicated in collumns "Plant.Name"
+- the individual plant identifier is indicated in collumn "Plant.ID"
+- the collumns from "AREA_PX" to "SOL" represent the morphometric traits derived from the black-and-white image
+
+Next we have data from other measuring stations as well:
+
+```{r}
+# data from fluorescent camera:
+fc_data <- read.csv("Fc_Plant.csv")
+# data from thermal/infrared camera:
+ir_data <- read.csv("Ir_Plant.csv")
+# data from RGB camera with color segmentation:
+# WARNING - this data used to be not exported correctly - because the names of the HUEs was also containing semicolons - and required some manual manipulations of the table before importing it into R. 
+col_data <- read.csv("Rgb_Color_Plant.csv")
+# data from scales measuring the weight of each pot:
+sc_data <- read.csv("ScalesMeasure.csv")
+```
+
+Let's combine all the datasets (except scales) together:
+
+```{r}
+library(reshape2)
+
+# We will use columns "Tray.Info", "Round.Order", "Plant.ID" to make sure we are matching the right columns between individual datasets.
+
+# In order to avoid unneccessary columns - we are going to first trim the datasets:
+col_data <- col_data[,c(1:2,4:9,13:21)]
+morpho_data <- morpho_data[,c(4:5,7,13:23)]
+fc_data <- fc_data[,c(4:5,7,13:95)]
+ir_data <- ir_data[,c(4:5,7,13:17)]
+
+all_data <- merge(col_data, morpho_data, by=c("Tray.ID", "Round.Order", "Plant.ID"))
+all_data <- merge(all_data, fc_data, by=c("Tray.ID", "Round.Order", "Plant.ID"))
+# Then I have a little problem - because my IR is measured in a round before the full cycle - and the round order numbers are different. So for me to be able to merge two dataset I need to create new column "Round.Order2"
+ir_data$Round.Order2 <- ir_data$Round.Order+1
+# and then let's replace the original Round.Order by this tricky round order and remove it from the dataset:
+ir_data$Round.Order <- ir_data$Round.Order2
+ir_data <- ir_data[,1:8]
+# and now we can fuse all together:
+all_data <- merge(all_data, ir_data, by=c("Tray.ID", "Round.Order", "Plant.ID"))
+head(all_data)
+```
+
+Just because I am obnoxious - we can save this file in the working directory as well
+
+```{r}
+write.csv(all_data, "pheno_data.csv", row.names = F)
+```
+
+## 
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+This notebook was created by [Magdalena Julkowska](https://mmjulkowska.github.io) (KAUST, Saudi Arabia), a PostDoc at Mark Tester group. Released under MIT license. 
